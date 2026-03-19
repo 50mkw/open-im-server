@@ -41,6 +41,11 @@ spec:
       type: string
       default: ''
       required: true
+    MONGO_AUTH_SOURCE:
+      description: 'MongoDB 认证数据库，root用户填 admin，普通用户填 openim_v3'
+      type: string
+      default: 'openim_v3'
+      required: true
     REDIS_ADDRESS:
       description: 'Redis 地址，格式：host:port'
       type: string
@@ -124,6 +129,8 @@ spec:
               value: ${{ inputs.MONGO_USERNAME }}
             - name: IMENV_MONGODB_PASSWORD
               value: ${{ inputs.MONGO_PASSWORD }}
+            - name: IMENV_MONGODB_AUTHSOURCE
+              value: ${{ inputs.MONGO_AUTH_SOURCE }}
             - name: IMENV_REDIS_ADDRESS
               value: ${{ inputs.REDIS_ADDRESS }}
             - name: IMENV_REDIS_PASSWORD
