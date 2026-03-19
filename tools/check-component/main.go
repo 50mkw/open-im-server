@@ -147,9 +147,12 @@ func performChecks(ctx context.Context, mongoConfig *config.Mongo, redisConfig *
 		"Redis": func(ctx context.Context) error {
 			return CheckRedis(ctx, redisConfig)
 		},
-		"Kafka": func(ctx context.Context) error {
+	}
+	// Skip Kafka check in multi-cluster mode; each cluster is validated by the service itself.
+	if len(kafkaConfig.Clusters) == 0 {
+		checks["Kafka"] = func(ctx context.Context) error {
 			return CheckKafka(ctx, kafkaConfig)
-		},
+		}
 	}
 	if minioConfig != nil {
 		checks["MinIO"] = func(ctx context.Context) error {
