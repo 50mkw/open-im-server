@@ -18,6 +18,7 @@ import (
 	"context"
 
 	"github.com/openimsdk/open-im-server/v3/pkg/common/config"
+	localKafka "github.com/openimsdk/open-im-server/v3/pkg/common/kafka"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/cache"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/kafka"
 	"github.com/openimsdk/protocol/push"
@@ -32,22 +33,18 @@ type PushDatabase interface {
 
 type pushDataBase struct {
 	cache                 cache.ThirdCache
-	producerToOfflinePush *kafka.Producer
+	producerToOfflinePush localKafka.MessageProducer
 }
 
-func NewPushDatabase(cache cache.ThirdCache, kafkaConf *config.Kafka) PushDatabase {
-	conf, err := kafka.BuildProducerConfig(*kafkaConf.Build())
+func NewPushDatabase(cache cache.ThirdCache, kafkaConf *config.Kafka) (PushDatabase, error) {
+	producerToOfflinePush, err := localKafka.NewMultiProducer(kafkaConf.BuildClusters(), kafkaConf.ToOfflinePushTopic)
 	if err != nil {
-		return nil
-	}
-	producerToOfflinePush, err := kafka.NewKafkaProducer(conf, kafkaConf.Address, kafkaConf.ToOfflinePushTopic)
-	if err != nil {
-		return nil
+		return nil, err
 	}
 	return &pushDataBase{
 		cache:                 cache,
 		producerToOfflinePush: producerToOfflinePush,
-	}
+	}, nil
 }
 
 func (p *pushDataBase) DelFcmToken(ctx context.Context, userID string, platformID int) error {

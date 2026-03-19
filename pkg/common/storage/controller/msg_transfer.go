@@ -9,6 +9,7 @@ import (
 	"github.com/openimsdk/tools/utils/datautil"
 
 	"github.com/openimsdk/open-im-server/v3/pkg/common/config"
+	localKafka "github.com/openimsdk/open-im-server/v3/pkg/common/kafka"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/cache"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/database"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/model"
@@ -38,15 +39,11 @@ type MsgTransferDatabase interface {
 }
 
 func NewMsgTransferDatabase(msgDocModel database.Msg, msg cache.MsgCache, seqUser cache.SeqUser, seqConversation cache.SeqConversationCache, kafkaConf *config.Kafka) (MsgTransferDatabase, error) {
-	conf, err := kafka.BuildProducerConfig(*kafkaConf.Build())
+	producerToMongo, err := localKafka.NewMultiProducer(kafkaConf.BuildClusters(), kafkaConf.ToMongoTopic)
 	if err != nil {
 		return nil, err
 	}
-	producerToMongo, err := kafka.NewKafkaProducer(conf, kafkaConf.Address, kafkaConf.ToMongoTopic)
-	if err != nil {
-		return nil, err
-	}
-	producerToPush, err := kafka.NewKafkaProducer(conf, kafkaConf.Address, kafkaConf.ToPushTopic)
+	producerToPush, err := localKafka.NewMultiProducer(kafkaConf.BuildClusters(), kafkaConf.ToPushTopic)
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +63,8 @@ type msgTransferDatabase struct {
 	msgCache        cache.MsgCache
 	seqConversation cache.SeqConversationCache
 	seqUser         cache.SeqUser
-	producerToMongo *kafka.Producer
-	producerToPush  *kafka.Producer
+	producerToMongo localKafka.MessageProducer
+	producerToPush  localKafka.MessageProducer
 }
 
 func (db *msgTransferDatabase) BatchInsertChat2DB(ctx context.Context, conversationID string, msgList []*sdkws.MsgData, currentMaxSeq int64) error {

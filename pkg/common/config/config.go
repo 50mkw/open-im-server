@@ -90,6 +90,18 @@ type Kafka struct {
 	ToOfflineGroupID   string   `mapstructure:"toOfflinePushGroupID"`
 
 	Tls TLSConfig `mapstructure:"tls"`
+
+	// Clusters enables multi-cluster mode. When set, Address/Tls above are ignored.
+	// Each entry is an independent Kafka cluster; clusters can be added or removed freely.
+	// Messages are routed by: hash(conversationID) % len(Clusters).
+	Clusters []KafkaCluster `mapstructure:"clusters"`
+}
+
+// KafkaCluster holds connection settings for a single Kafka cluster.
+// Username/Password/ProducerAck/CompressType are inherited from the parent Kafka struct.
+type KafkaCluster struct {
+	Address []string  `mapstructure:"address"`
+	Tls     TLSConfig `mapstructure:"tls"`
 }
 type TLSConfig struct {
 	EnableTLS          bool   `mapstructure:"enableTLS"`
@@ -537,6 +549,34 @@ func (k *Kafka) Build() *kafka.Config {
 			InsecureSkipVerify: k.Tls.InsecureSkipVerify,
 		},
 	}
+}
+
+// BuildClusters returns one kafka.Config per cluster.
+// If Clusters is empty, falls back to the single Address/Tls config (backward compatible).
+// This is the main entry point for multi-cluster producer and consumer creation.
+func (k *Kafka) BuildClusters() []*kafka.Config {
+	if len(k.Clusters) == 0 {
+		return []*kafka.Config{k.Build()}
+	}
+	configs := make([]*kafka.Config, 0, len(k.Clusters))
+	for _, c := range k.Clusters {
+		configs = append(configs, &kafka.Config{
+			Username:     k.Username,
+			Password:     k.Password,
+			ProducerAck:  k.ProducerAck,
+			CompressType: k.CompressType,
+			Addr:         c.Address,
+			TLS: kafka.TLSConfig{
+				EnableTLS:          c.Tls.EnableTLS,
+				CACrt:              c.Tls.CACrt,
+				ClientCrt:          c.Tls.ClientCrt,
+				ClientKey:          c.Tls.ClientKey,
+				ClientKeyPwd:       c.Tls.ClientKeyPwd,
+				InsecureSkipVerify: c.Tls.InsecureSkipVerify,
+			},
+		})
+	}
+	return configs
 }
 
 func (m *Minio) Build() *minio.Config {

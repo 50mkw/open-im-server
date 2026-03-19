@@ -33,6 +33,7 @@ import (
 
 	"github.com/openimsdk/open-im-server/v3/pkg/common/config"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/convert"
+	localKafka "github.com/openimsdk/open-im-server/v3/pkg/common/kafka"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/cache"
 	"github.com/openimsdk/protocol/constant"
 	pbmsg "github.com/openimsdk/protocol/msg"
@@ -103,11 +104,7 @@ type CommonMsgDatabase interface {
 }
 
 func NewCommonMsgDatabase(msgDocModel database.Msg, msg cache.MsgCache, seqUser cache.SeqUser, seqConversation cache.SeqConversationCache, kafkaConf *config.Kafka) (CommonMsgDatabase, error) {
-	conf, err := kafka.BuildProducerConfig(*kafkaConf.Build())
-	if err != nil {
-		return nil, err
-	}
-	producerToRedis, err := kafka.NewKafkaProducer(conf, kafkaConf.Address, kafkaConf.ToRedisTopic)
+	producerToRedis, err := localKafka.NewMultiProducer(kafkaConf.BuildClusters(), kafkaConf.ToRedisTopic)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +123,7 @@ type commonMsgDatabase struct {
 	msgCache        cache.MsgCache
 	seqConversation cache.SeqConversationCache
 	seqUser         cache.SeqUser
-	producer        *kafka.Producer
+	producer        localKafka.MessageProducer
 }
 
 func (db *commonMsgDatabase) MsgToMQ(ctx context.Context, key string, msg2mq *sdkws.MsgData) error {

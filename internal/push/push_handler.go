@@ -26,6 +26,7 @@ import (
 	"github.com/openimsdk/tools/discovery"
 	"github.com/openimsdk/tools/log"
 	"github.com/openimsdk/tools/mcontext"
+	localKafka "github.com/openimsdk/open-im-server/v3/pkg/common/kafka"
 	"github.com/openimsdk/tools/utils/datautil"
 	"github.com/openimsdk/tools/utils/jsonutil"
 	"github.com/openimsdk/tools/utils/timeutil"
@@ -34,7 +35,7 @@ import (
 )
 
 type ConsumerHandler struct {
-	pushConsumerGroup      *kafka.MConsumerGroup
+	pushConsumerGroup      localKafka.ConsumerGroupHandler
 	offlinePusher          offlinepush.OfflinePusher
 	onlinePusher           OnlinePusher
 	pushDatabase           controller.PushDatabase
@@ -53,7 +54,7 @@ func NewConsumerHandler(ctx context.Context, config *Config, database controller
 	client discovery.SvcDiscoveryRegistry) (*ConsumerHandler, error) {
 	var consumerHandler ConsumerHandler
 	var err error
-	consumerHandler.pushConsumerGroup, err = kafka.NewMConsumerGroup(config.KafkaConfig.Build(), config.KafkaConfig.ToPushGroupID,
+	consumerHandler.pushConsumerGroup, err = localKafka.NewMultiConsumerGroup(config.KafkaConfig.BuildClusters(), config.KafkaConfig.ToPushGroupID,
 		[]string{config.KafkaConfig.ToPushTopic}, true)
 	if err != nil {
 		return nil, err

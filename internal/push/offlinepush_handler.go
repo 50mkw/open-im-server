@@ -13,12 +13,13 @@ import (
 	"github.com/openimsdk/protocol/sdkws"
 	"github.com/openimsdk/tools/errs"
 	"github.com/openimsdk/tools/log"
+	localKafka "github.com/openimsdk/open-im-server/v3/pkg/common/kafka"
 	"github.com/openimsdk/tools/utils/jsonutil"
 	"google.golang.org/protobuf/proto"
 )
 
 type OfflinePushConsumerHandler struct {
-	OfflinePushConsumerGroup *kafka.MConsumerGroup
+	OfflinePushConsumerGroup localKafka.ConsumerGroupHandler
 	offlinePusher            offlinepush.OfflinePusher
 }
 
@@ -26,7 +27,7 @@ func NewOfflinePushConsumerHandler(config *Config, offlinePusher offlinepush.Off
 	var offlinePushConsumerHandler OfflinePushConsumerHandler
 	var err error
 	offlinePushConsumerHandler.offlinePusher = offlinePusher
-	offlinePushConsumerHandler.OfflinePushConsumerGroup, err = kafka.NewMConsumerGroup(config.KafkaConfig.Build(), config.KafkaConfig.ToOfflineGroupID,
+	offlinePushConsumerHandler.OfflinePushConsumerGroup, err = localKafka.NewMultiConsumerGroup(config.KafkaConfig.BuildClusters(), config.KafkaConfig.ToOfflineGroupID,
 		[]string{config.KafkaConfig.ToOfflinePushTopic}, true)
 	if err != nil {
 		return nil, err

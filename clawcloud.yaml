@@ -1,0 +1,275 @@
+apiVersion: app.claw.cloud/v1
+kind: Template
+metadata:
+  name: openim-server
+spec:
+  title: 'OpenIM Server'
+  type: private
+  author: 50mkw
+  author_id: 180503656
+  date: 2026-03-19
+  gitRepo: 'https://github.com/50mkw/open-im-server'
+  description: 'OpenIM Server with multi-cluster Kafka support'
+  templateType: inline
+  categories:
+    - tool
+  defaults:
+    app_host:
+      type: string
+      value: openim-server-${{ random(8) }}
+    app_name:
+      type: string
+      value: openim-server-${{ random(8) }}
+  inputs:
+    GITHUB_TOKEN:
+      description: 'GitHub Personal Access Token（需要 read:packages 权限）'
+      type: string
+      default: ''
+      required: true
+    MONGO_ADDRESS:
+      description: 'MongoDB 地址，格式：host:port'
+      type: string
+      default: 'mongo:27017'
+      required: true
+    MONGO_USERNAME:
+      description: 'MongoDB 用户名'
+      type: string
+      default: 'openIM'
+      required: true
+    MONGO_PASSWORD:
+      description: 'MongoDB 密码'
+      type: string
+      default: ''
+      required: true
+    REDIS_ADDRESS:
+      description: 'Redis 地址，格式：host:port'
+      type: string
+      default: 'redis:6379'
+      required: true
+    REDIS_PASSWORD:
+      description: 'Redis 密码'
+      type: string
+      default: ''
+      required: true
+    ETCD_ADDRESS:
+      description: 'etcd 地址，格式：host:2379'
+      type: string
+      default: 'etcd:2379'
+      required: true
+    OPENIM_SECRET:
+      description: 'OpenIM 认证密钥'
+      type: string
+      default: 'openIM123'
+      required: true
+    GRAFANA_URL:
+      description: 'Grafana 监控地址（可选）'
+      type: string
+      default: ''
+      required: false
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${{ defaults.app_name }}-ghcr
+type: kubernetes.io/dockerconfigjson
+stringData:
+  .dockerconfigjson: '{"auths":{"ghcr.io":{"username":"50mkw","password":"${{ inputs.GITHUB_TOKEN }}"}}}'
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ${{ defaults.app_name }}
+  annotations:
+    originImageName: ghcr.io/50mkw/openim-server:latest
+    deploy.run.claw.cloud/minReplicas: '1'
+    deploy.run.claw.cloud/maxReplicas: '1'
+  labels:
+    run.claw.cloud/app-deploy-manager: ${{ defaults.app_name }}
+    app: ${{ defaults.app_name }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 1
+  minReadySeconds: 10
+  serviceName: ${{ defaults.app_name }}
+  selector:
+    matchLabels:
+      app: ${{ defaults.app_name }}
+  template:
+    metadata:
+      labels:
+        app: ${{ defaults.app_name }}
+    spec:
+      terminationGracePeriodSeconds: 60
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: ${{ defaults.app_name }}-ghcr
+      containers:
+        - name: ${{ defaults.app_name }}
+          image: ghcr.io/50mkw/openim-server:latest
+          env:
+            - name: TZ
+              value: Asia/Shanghai
+            - name: IMENV_MONGODB_ADDRESS
+              value: ${{ inputs.MONGO_ADDRESS }}
+            - name: IMENV_MONGODB_USERNAME
+              value: ${{ inputs.MONGO_USERNAME }}
+            - name: IMENV_MONGODB_PASSWORD
+              value: ${{ inputs.MONGO_PASSWORD }}
+            - name: IMENV_REDIS_ADDRESS
+              value: ${{ inputs.REDIS_ADDRESS }}
+            - name: IMENV_REDIS_PASSWORD
+              value: ${{ inputs.REDIS_PASSWORD }}
+            - name: IMENV_DISCOVERY_ETCD_ADDRESS
+              value: ${{ inputs.ETCD_ADDRESS }}
+            - name: IMENV_DISCOVERY_ETCD_USERNAME
+              value: ''
+            - name: IMENV_DISCOVERY_ETCD_PASSWORD
+              value: ''
+            - name: IMENV_SHARE_SECRET
+              value: ${{ inputs.OPENIM_SECRET }}
+            - name: IMENV_LOG_ISSTDOUT
+              value: 'true'
+            - name: IMENV_LOG_REMAINLOGLEVEL
+              value: '3'
+            - name: IMENV_OPENIM_API_PROMETHEUS_GRAFANAURL
+              value: ${{ inputs.GRAFANA_URL }}
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          ports:
+            - name: api
+              protocol: TCP
+              containerPort: 10002
+            - name: msggateway
+              protocol: TCP
+              containerPort: 10001
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: openim-server-logs
+              mountPath: /openim-server/logs
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "mage check"]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+            timeoutSeconds: 30
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mage check"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 10
+            timeoutSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        annotations:
+          path: /openim-server/logs
+          value: '2'
+        name: openim-server-logs
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${{ defaults.app_name }}
+  labels:
+    run.claw.cloud/app-deploy-manager: ${{ defaults.app_name }}
+spec:
+  ports:
+    - name: api
+      port: 10002
+      targetPort: 10002
+    - name: msggateway
+      port: 10001
+      targetPort: 10001
+  selector:
+    app: ${{ defaults.app_name }}
+
+---
+
+# HTTP API 入口（REST API）
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${{ defaults.app_name }}-api
+  labels:
+    run.claw.cloud/app-deploy-manager: ${{ defaults.app_name }}
+    run.claw.cloud/app-deploy-manager-domain: ${{ defaults.app_host }}
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: 32m
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 64k
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '300'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '300'
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: '60'
+spec:
+  rules:
+    - host: ${{ defaults.app_host }}.${{ CLAWCLOUD_CLOUD_DOMAIN }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: ${{ defaults.app_name }}
+                port:
+                  number: 10002
+  tls:
+    - hosts:
+        - ${{ defaults.app_host }}.${{ CLAWCLOUD_CLOUD_DOMAIN }}
+      secretName: ${{ CLAWCLOUD_CERT_SECRET_NAME }}
+
+---
+
+# WebSocket 入口（消息网关）
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${{ defaults.app_name }}-ws
+  labels:
+    run.claw.cloud/app-deploy-manager: ${{ defaults.app_name }}
+    run.claw.cloud/app-deploy-manager-domain: ${{ defaults.app_host }}-ws
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: '60'
+    nginx.ingress.kubernetes.io/proxy-http-version: '1.1'
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+spec:
+  rules:
+    - host: ${{ defaults.app_host }}-ws.${{ CLAWCLOUD_CLOUD_DOMAIN }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: ${{ defaults.app_name }}
+                port:
+                  number: 10001
+  tls:
+    - hosts:
+        - ${{ defaults.app_host }}-ws.${{ CLAWCLOUD_CLOUD_DOMAIN }}
+      secretName: ${{ CLAWCLOUD_CERT_SECRET_NAME }}

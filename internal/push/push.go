@@ -55,7 +55,10 @@ func Start(ctx context.Context, config *Config, client discovery.SvcDiscoveryReg
 		return err
 	}
 
-	database := controller.NewPushDatabase(cacheModel, &config.KafkaConfig)
+	database, err := controller.NewPushDatabase(cacheModel, &config.KafkaConfig)
+	if err != nil {
+		return err
+	}
 
 	consumer, err := NewConsumerHandler(ctx, config, database, offlinePusher, rdb, client)
 	if err != nil {

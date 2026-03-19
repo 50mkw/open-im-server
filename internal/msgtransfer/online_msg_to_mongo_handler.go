@@ -19,6 +19,7 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/config"
+	localKafka "github.com/openimsdk/open-im-server/v3/pkg/common/kafka"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/prommetrics"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/controller"
 	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/kafka"
@@ -28,12 +29,12 @@ import (
 )
 
 type OnlineHistoryMongoConsumerHandler struct {
-	historyConsumerGroup *kafka.MConsumerGroup
+	historyConsumerGroup localKafka.ConsumerGroupHandler
 	msgTransferDatabase  controller.MsgTransferDatabase
 }
 
 func NewOnlineHistoryMongoConsumerHandler(kafkaConf *config.Kafka, database controller.MsgTransferDatabase) (*OnlineHistoryMongoConsumerHandler, error) {
-	historyConsumerGroup, err := kafka.NewMConsumerGroup(kafkaConf.Build(), kafkaConf.ToMongoGroupID, []string{kafkaConf.ToMongoTopic}, true)
+	historyConsumerGroup, err := localKafka.NewMultiConsumerGroup(kafkaConf.BuildClusters(), kafkaConf.ToMongoGroupID, []string{kafkaConf.ToMongoTopic}, true)
 	if err != nil {
 		return nil, err
 	}

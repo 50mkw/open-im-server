@@ -1,40 +1,38 @@
-# Username for authentication
 username: ''
-# Password for authentication
 password: ''
-# Producer acknowledgment settings
-producerAck: 
-# Compression type to use (e.g., none, gzip, snappy)
+producerAck:
 compressType: none
-# List of Kafka broker addresses
+# address and tls below are ignored when clusters is non-empty
 address: [ localhost:19094 ]
-# Kafka topic for Redis integration
 toRedisTopic: toRedis
-# Kafka topic for MongoDB integration
 toMongoTopic: toMongo
-# Kafka topic for push notifications
 toPushTopic: toPush
-# Kafka topic for offline push notifications
 toOfflinePushTopic: toOfflinePush
-# Consumer group ID for Redis topic
 toRedisGroupID: redis
-# Consumer group ID for MongoDB topic
 toMongoGroupID: mongo
-# Consumer group ID for push notifications topic
 toPushGroupID: push
-# Consumer group ID for offline push notifications topic
 toOfflinePushGroupID: offlinePush
-# TLS (Transport Layer Security) configuration
 tls:
-  # Enable or disable TLS
   enableTLS: false
-  # CA certificate file path
-  caCrt: 
-  # Client certificate file path
-  clientCrt: 
-  # Client key file path
-  clientKey: 
-  # Client key password
-  clientKeyPwd: 
-  # Whether to skip TLS verification (not recommended for production)
+  caCrt:
+  clientCrt:
+  clientKey:
+  clientKeyPwd:
   insecureSkipVerify: false
+
+# Multi-cluster: hash(conversationID) % 2 routes to account1 or account2
+clusters:
+  - address: [ kafka-34a3db5b-patrick-5623.k.aivencloud.com:26594 ]
+    tls:
+      enableTLS: true
+      caCrt: /openim-server/config/kafka-certs/account1/ca.crt
+      clientCrt: /openim-server/config/kafka-certs/account1/client.crt
+      clientKey: /openim-server/config/kafka-certs/account1/client.key
+      insecureSkipVerify: false
+  - address: [ kafka-2bc1f84a-patrick-50mkw.j.aivencloud.com:11242 ]
+    tls:
+      enableTLS: true
+      caCrt: /openim-server/config/kafka-certs/account2/ca.crt
+      clientCrt: /openim-server/config/kafka-certs/account2/client.crt
+      clientKey: /openim-server/config/kafka-certs/account2/client.key
+      insecureSkipVerify: false

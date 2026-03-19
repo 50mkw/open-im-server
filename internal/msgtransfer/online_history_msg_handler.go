@@ -42,6 +42,8 @@ import (
 	"github.com/openimsdk/tools/errs"
 	"github.com/openimsdk/tools/log"
 	"github.com/openimsdk/tools/mcontext"
+	localKafka "github.com/openimsdk/open-im-server/v3/pkg/common/kafka"
+	"github.com/openimsdk/tools/mq/kafka"
 	"github.com/openimsdk/tools/utils/stringutil"
 )
 
@@ -67,7 +69,7 @@ type userHasReadSeq struct {
 }
 
 type OnlineHistoryRedisConsumerHandler struct {
-	historyConsumerGroup *kafka.MConsumerGroup
+	historyConsumerGroup localKafka.ConsumerGroupHandler
 
 	redisMessageBatches *batcher.Batcher[sarama.ConsumerMessage]
 
@@ -81,7 +83,7 @@ type OnlineHistoryRedisConsumerHandler struct {
 
 func NewOnlineHistoryRedisConsumerHandler(ctx context.Context, client discovery.SvcDiscoveryRegistry, config *Config, database controller.MsgTransferDatabase) (*OnlineHistoryRedisConsumerHandler, error) {
 	kafkaConf := config.KafkaConfig
-	historyConsumerGroup, err := kafka.NewMConsumerGroup(kafkaConf.Build(), kafkaConf.ToRedisGroupID, []string{kafkaConf.ToRedisTopic}, false)
+	historyConsumerGroup, err := localKafka.NewMultiConsumerGroup(kafkaConf.BuildClusters(), kafkaConf.ToRedisGroupID, []string{kafkaConf.ToRedisTopic}, false)
 	if err != nil {
 		return nil, err
 	}
