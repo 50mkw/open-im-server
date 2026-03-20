@@ -155,9 +155,11 @@ spec:
             requests:
               cpu: 200m
               memory: 512Mi
+              ephemeral-storage: 1Gi
             limits:
               cpu: 1000m
               memory: 1Gi
+              ephemeral-storage: 4Gi
           ports:
             - name: api
               protocol: TCP

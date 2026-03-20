@@ -1,49 +1,34 @@
-# Use Go 1.22 Alpine as the base image for building the application
-FROM golang:1.22-alpine AS builder
+# Builder runs natively on the build machine (arm64), cross-compiles for target arch
+FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS builder
 
-# Define the base directory for the application as an environment variable
+ARG TARGETARCH
+ARG TARGETOS=linux
+
 ENV SERVER_DIR=/openim-server
-
-# Set the working directory inside the container based on the environment variable
 WORKDIR $SERVER_DIR
 
-# Set the Go proxy to improve dependency resolution speed
-# ENV GOPROXY=https://goproxy.io,direct
-
-# Copy all files from the current directory into the container
 COPY . .
-
 RUN go mod download
 
-# Install Mage to use for building the application
+# Install Mage and build service binaries for the target architecture
 RUN go install github.com/magefile/mage@v1.15.0
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH mage build
 
-# Optionally build your application if needed
-RUN mage build
+# Build the launcher binary for the target architecture using go build directly.
+# This avoids mage -compile which does not respect GOARCH for cross-compilation.
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /tmp/mage ./scripts/launcher/
 
-# Using Alpine Linux with Go environment for the final image
-FROM golang:1.22-alpine
+# Final image: alpine only, no Go toolchain needed at runtime
+FROM alpine:3.19
 
-# Install necessary packages, such as bash
 RUN apk add --no-cache bash
 
-# Set the environment and work directory
 ENV SERVER_DIR=/openim-server
 WORKDIR $SERVER_DIR
 
-
-# Copy the compiled binaries and mage from the builder image to the final image
 COPY --from=builder $SERVER_DIR/_output $SERVER_DIR/_output
 COPY --from=builder $SERVER_DIR/config $SERVER_DIR/config
-COPY --from=builder /go/bin/mage /usr/local/bin/mage
-COPY --from=builder $SERVER_DIR/magefile_windows.go $SERVER_DIR/
-COPY --from=builder $SERVER_DIR/magefile_unix.go $SERVER_DIR/
-COPY --from=builder $SERVER_DIR/magefile.go $SERVER_DIR/
+COPY --from=builder /tmp/mage /usr/local/bin/mage
 COPY --from=builder $SERVER_DIR/start-config.yml $SERVER_DIR/
-COPY --from=builder $SERVER_DIR/go.mod $SERVER_DIR/
-COPY --from=builder $SERVER_DIR/go.sum $SERVER_DIR/
 
-RUN go get github.com/openimsdk/gomake@v0.0.15-alpha.5
-
-# Set the command to run when the container starts
 ENTRYPOINT ["sh", "-c", "mage start && tail -f /dev/null"]
