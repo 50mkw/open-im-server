@@ -56,10 +56,10 @@ spec:
       type: string
       default: ''
       required: true
-    REDIS_CLUSTER_MODE:
-      description: 'Redis 是否集群模式，集群填 true，单机填 false'
+    REDIS_MODE:
+      description: 'Redis 模式：cluster（集群）、standalone（单机）、sentinel（哨兵）'
       type: string
-      default: 'false'
+      default: 'standalone'
       required: true
     ETCD_ADDRESS:
       description: 'etcd 地址，格式：host:2379'
@@ -135,8 +135,8 @@ spec:
               value: ${{ inputs.REDIS_ADDRESS }}
             - name: IMENV_REDIS_PASSWORD
               value: ${{ inputs.REDIS_PASSWORD }}
-            - name: IMENV_REDIS_CLUSTERMODE
-              value: ${{ inputs.REDIS_CLUSTER_MODE }}
+            - name: IMENV_REDIS_REDISMODE
+              value: ${{ inputs.REDIS_MODE }}
             - name: IMENV_DISCOVERY_ETCD_ADDRESS
               value: ${{ inputs.ETCD_ADDRESS }}
             - name: IMENV_DISCOVERY_ETCD_USERNAME
