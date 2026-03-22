@@ -43,7 +43,6 @@ import (
 	"github.com/openimsdk/tools/log"
 	"github.com/openimsdk/tools/mcontext"
 	localKafka "github.com/openimsdk/open-im-server/v3/pkg/common/kafka"
-	"github.com/openimsdk/tools/mq/kafka"
 	"github.com/openimsdk/tools/utils/stringutil"
 )
 
