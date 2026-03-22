@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/kafka"
 	"github.com/openimsdk/tools/utils/jsonutil"
 
 	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/database"
