@@ -19,5 +19,5 @@ func main() {
 		rlimit.Cur = uint64(mageutil.MaxFileDescriptors)
 		_ = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit)
 	}
-	mageutil.StartToolsAndServices()
+	mageutil.StartToolsAndServices(nil, nil)
 }
