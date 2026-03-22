@@ -5,25 +5,25 @@ import (
 	"sync"
 
 	"github.com/IBM/sarama"
+	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/kafka"
 	"github.com/openimsdk/tools/errs"
-	extKafka "github.com/openimsdk/tools/mq/kafka"
 )
 
 // MultiConsumerGroup subscribes to the same topic across multiple Kafka clusters.
 // One consumer group is created per cluster; all fan-in to the same handler.
 // Adding or removing clusters only requires updating the config — no code changes needed.
 type MultiConsumerGroup struct {
-	groups []*extKafka.MConsumerGroup
+	groups []*kafka.MConsumerGroup
 }
 
 // NewMultiConsumerGroup creates one MConsumerGroup per cluster config.
-func NewMultiConsumerGroup(configs []*extKafka.Config, groupID string, topics []string, autoCommitEnable bool) (*MultiConsumerGroup, error) {
+func NewMultiConsumerGroup(configs []*kafka.Config, groupID string, topics []string, autoCommitEnable bool) (*MultiConsumerGroup, error) {
 	if len(configs) == 0 {
 		return nil, errs.New("NewMultiConsumerGroup: at least one cluster config is required")
 	}
-	groups := make([]*extKafka.MConsumerGroup, 0, len(configs))
+	groups := make([]*kafka.MConsumerGroup, 0, len(configs))
 	for i, cfg := range configs {
-		g, err := extKafka.NewMConsumerGroup(cfg, groupID, topics, autoCommitEnable)
+		g, err := kafka.NewMConsumerGroup(cfg, groupID, topics, autoCommitEnable)
 		if err != nil {
 			return nil, errs.WrapMsg(err, "NewMConsumerGroup failed", "clusterIndex", i, "addr", cfg.Addr)
 		}
@@ -38,7 +38,7 @@ func (m *MultiConsumerGroup) RegisterHandleAndConsumer(ctx context.Context, hand
 	var wg sync.WaitGroup
 	for _, g := range m.groups {
 		wg.Add(1)
-		go func(group *extKafka.MConsumerGroup) {
+		go func(group *kafka.MConsumerGroup) {
 			defer wg.Done()
 			group.RegisterHandleAndConsumer(ctx, handler)
 		}(g)

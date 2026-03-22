@@ -4,8 +4,8 @@ import (
 	"context"
 	"hash/fnv"
 
+	"github.com/openimsdk/open-im-server/v3/pkg/common/storage/kafka"
 	"github.com/openimsdk/tools/errs"
-	extKafka "github.com/openimsdk/tools/mq/kafka"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -14,22 +14,22 @@ import (
 // This guarantees the same conversationID always lands on the same cluster,
 // preserving ordering guarantees.
 type MultiProducer struct {
-	producers []*extKafka.Producer
+	producers []*kafka.Producer
 }
 
 // NewMultiProducer creates one producer per cluster config.
 // If only one config is provided it behaves identically to a plain Producer.
-func NewMultiProducer(configs []*extKafka.Config, topic string) (*MultiProducer, error) {
+func NewMultiProducer(configs []*kafka.Config, topic string) (*MultiProducer, error) {
 	if len(configs) == 0 {
 		return nil, errs.New("NewMultiProducer: at least one cluster config is required")
 	}
-	producers := make([]*extKafka.Producer, 0, len(configs))
+	producers := make([]*kafka.Producer, 0, len(configs))
 	for i, cfg := range configs {
-		saramaCfg, err := extKafka.BuildProducerConfig(*cfg)
+		saramaCfg, err := kafka.BuildProducerConfig(*cfg)
 		if err != nil {
 			return nil, errs.WrapMsg(err, "BuildProducerConfig failed", "clusterIndex", i, "addr", cfg.Addr)
 		}
-		p, err := extKafka.NewKafkaProducer(saramaCfg, cfg.Addr, topic)
+		p, err := kafka.NewKafkaProducer(saramaCfg, cfg.Addr, topic)
 		if err != nil {
 			return nil, errs.WrapMsg(err, "NewKafkaProducer failed", "clusterIndex", i, "addr", cfg.Addr)
 		}
