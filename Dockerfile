@@ -1,5 +1,5 @@
 # Builder runs natively on the build machine (arm64), cross-compiles for target arch
-FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
 
 ARG TARGETARCH
 ARG TARGETOS=linux
