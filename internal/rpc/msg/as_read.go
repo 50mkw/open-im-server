@@ -79,10 +79,16 @@ func (m *msgServer) SetConversationHasReadSeq(ctx context.Context, req *msg.SetC
 	if err != nil {
 		return nil, err
 	}
-	if req.HasReadSeq > maxSeq {
+	if maxSeq > 0 && req.HasReadSeq > maxSeq {
 		return nil, errs.ErrArgs.WrapMsg("hasReadSeq must not be bigger than maxSeq")
 	}
-	if err := m.MsgDatabase.SetHasReadSeq(ctx, req.UserID, req.ConversationID, req.HasReadSeq); err != nil {
+	// When maxSeq==0 the conversation has no valid messages (e.g. corrupted by sessionType=0 bug);
+	// cap hasReadSeq at maxSeq so the client can still delete/clear such conversations.
+	hasReadSeq := req.HasReadSeq
+	if maxSeq == 0 {
+		hasReadSeq = 0
+	}
+	if err := m.MsgDatabase.SetHasReadSeq(ctx, req.UserID, req.ConversationID, hasReadSeq); err != nil {
 		return nil, err
 	}
 	m.sendMarkAsReadNotification(ctx, req.ConversationID, constant.SingleChatType, req.UserID, req.UserID, nil, req.HasReadSeq)
@@ -98,7 +104,7 @@ func (m *msgServer) MarkMsgsAsRead(ctx context.Context, req *msg.MarkMsgsAsReadR
 		return nil, err
 	}
 	hasReadSeq := req.Seqs[len(req.Seqs)-1]
-	if hasReadSeq > maxSeq {
+	if maxSeq > 0 && hasReadSeq > maxSeq {
 		return nil, errs.ErrArgs.WrapMsg("hasReadSeq must not be bigger than maxSeq")
 	}
 	conversation, err := m.ConversationLocalCache.GetConversation(ctx, req.UserID, req.ConversationID)
