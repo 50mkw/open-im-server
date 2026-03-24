@@ -62,13 +62,22 @@ func (m *msgServer) GetConversationsHasReadAndMaxSeq(ctx context.Context, req *m
 	}
 	resp := &msg.GetConversationsHasReadAndMaxSeqResp{Seqs: make(map[string]*msg.Seqs)}
 	for conversationID, maxSeq := range maxSeqs {
-		resp.Seqs[conversationID] = &msg.Seqs{
-			HasReadSeq: hasReadSeqs[conversationID],
-			MaxSeq:     maxSeq.Seq,
-			MaxSeqTime: maxSeq.Time,
-		}
+		hasReadSeq := hasReadSeqs[conversationID]
+		reportedMaxSeq := maxSeq.Seq
 		if v, ok := conversationMaxSeqMap[conversationID]; ok {
-			resp.Seqs[conversationID].MaxSeq = v
+			// conversation.MaxSeq is a per-user ceiling (e.g. set when a member is
+			// kicked from a group so they cannot see messages after that point).
+			// Only apply the ceiling when it is ≥ hasReadSeq; if the ceiling is
+			// stale/smaller than what the user has already read, skip the override to
+			// avoid returning maxSeq < hasReadSeq which breaks the client SDK.
+			if v >= hasReadSeq {
+				reportedMaxSeq = v
+			}
+		}
+		resp.Seqs[conversationID] = &msg.Seqs{
+			HasReadSeq: hasReadSeq,
+			MaxSeq:     reportedMaxSeq,
+			MaxSeqTime: maxSeq.Time,
 		}
 	}
 	return resp, nil
