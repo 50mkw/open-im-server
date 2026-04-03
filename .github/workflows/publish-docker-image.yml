@@ -43,9 +43,7 @@ jobs:
         uses: docker/metadata-action@v5.6.0
         with:
           images: |
-            ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
-            registry.cn-hangzhou.aliyuncs.com/openimsdk/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=tag
             type=schedule
@@ -73,71 +71,8 @@ jobs:
             --cache-from type=gha \
             ./main-repo
 
-            # Use skopeo to convert the amd64 image from OCI format to Docker format and load it
-          skopeo copy --override-arch amd64 oci-archive:/tmp/oci-image/multi-arch.tar docker-daemon:${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:local
-
-          # check image
+            # check image
           docker image ls | grep openim
-
-      - name: Checkout compose repository
-        uses: actions/checkout@v4
-        with:
-          repository: "openimsdk/openim-docker"
-          path: "compose-repo"
-
-      - name: Get Internal IP Address
-        id: get-ip
-        run: |
-          IP=$(hostname -I | awk '{print $1}')
-          echo "The IP Address is: $IP"
-          echo "ip=$IP" >> $GITHUB_OUTPUT
-
-      - name: Update .env to use the local image
-        run: |
-          sed -i 's|OPENIM_SERVER_IMAGE=.*|OPENIM_SERVER_IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:local|' ${{ github.workspace }}/compose-repo/.env
-          sed -i 's|MINIO_EXTERNAL_ADDRESS=.*|MINIO_EXTERNAL_ADDRESS=http://${{ steps.get-ip.outputs.ip }}:10005|' ${{ github.workspace }}/compose-repo/.env
-
-      - name: Start services using Docker Compose
-        run: |
-          cd ${{ github.workspace }}/compose-repo
-          docker compose up -d
-
-          docker compose ps
-
-      # - name: Check openim-server health
-      #   run: |
-      #     timeout=300
-      #     interval=30
-      #     elapsed=0
-      #     while [[ $elapsed -le $timeout ]]; do
-      #       if ! docker exec openim-server mage check; then
-      #         echo "openim-server is not ready, waiting..."
-      #         sleep $interval
-      #         elapsed=$(($elapsed + $interval))
-      #       else
-      #         echo "Health check successful"
-      #         exit 0
-      #       fi
-      #     done
-      #     echo "Health check failed after 5 minutes"
-      #     exit 1
-
-      # - name: Check openim-chat health
-      #   if: success()
-      #   run: |
-      #     if ! docker exec openim-chat mage check; then
-      #         echo "openim-chat check failed"
-      #         exit 1
-      #       else
-      #         echo "Health check successful"
-      #         exit 0
-      #       fi
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3.3.0
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3.3.0
@@ -145,13 +80,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Log in to Aliyun Container Registry
-        uses: docker/login-action@v3.3.0
-        with:
-          registry: registry.cn-hangzhou.aliyuncs.com
-          username: ${{ secrets.ALIREGISTRY_USERNAME }}
-          password: ${{ secrets.ALIREGISTRY_TOKEN }}
 
       - name: Push multi-architecture images
         if: success()
@@ -165,30 +93,23 @@ jobs:
 
       - name: Verify multi-platform support
         run: |
-          images=(
-            "${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}"
-            "ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}"
-            "registry.cn-hangzhou.aliyuncs.com/openimsdk/${{ env.IMAGE_NAME }}"
-          )
-
-          for image in "${images[@]}"; do
-              for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' | cut -d':' -f2); do
-                  echo "Verifying multi-arch support for $image:$tag"
-                  manifest=$(docker manifest inspect "$image:$tag" || echo "error")
-                  if [[ "$manifest" == "error" ]]; then
-                      echo "Manifest not found for $image:$tag"
-                      exit 1
-                  fi
-                  amd64_found=$(echo "$manifest" | jq '.manifests[] | select(.platform.architecture == "amd64")')
-                  arm64_found=$(echo "$manifest" | jq '.manifests[] | select(.platform.architecture == "arm64")')
-                  if [[ -z "$amd64_found" ]]; then
-                      echo "Multi-platform support check failed for $image:$tag - missing amd64"
-                      exit 1
-                  fi
-                  if [[ -z "$arm64_found" ]]; then
-                      echo "Multi-platform support check failed for $image:$tag - missing arm64"
-                      exit 1
-                  fi
-                  echo "✅ $image:$tag supports both amd64 and arm64 architectures"
-              done
+          image="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}"
+          for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' | cut -d':' -f2); do
+              echo "Verifying multi-arch support for $image:$tag"
+              manifest=$(docker manifest inspect "$image:$tag" || echo "error")
+              if [[ "$manifest" == "error" ]]; then
+                  echo "Manifest not found for $image:$tag"
+                  exit 1
+              fi
+              amd64_found=$(echo "$manifest" | jq '.manifests[] | select(.platform.architecture == "amd64")')
+              arm64_found=$(echo "$manifest" | jq '.manifests[] | select(.platform.architecture == "arm64")')
+              if [[ -z "$amd64_found" ]]; then
+                  echo "Multi-platform support check failed for $image:$tag - missing amd64"
+                  exit 1
+              fi
+              if [[ -z "$arm64_found" ]]; then
+                  echo "Multi-platform support check failed for $image:$tag - missing arm64"
+                  exit 1
+              fi
+              echo "✅ $image:$tag supports both amd64 and arm64 architectures"
           done
